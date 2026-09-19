@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+  body{margin:0;width:560px;height:400px;background:#f82b1c;font-family:Consolas,monospace;user-select:none;overflow:hidden;}
+  img#face{position:absolute;left:28px;top:12px;width:188px;height:188px;}
+  #title{position:absolute;left:233px;top:9px;width:267px;height:154px;color:#fff;font-size:38px;font-weight:bold;text-align:center;}
+  #msgbox{position:absolute;left:12px;top:166px;width:520px;height:109px;border:2px solid #fff;color:#fff;font-size:22px;text-align:center;padding-top:8px;box-sizing:border-box;}
+  #msgbox b{color:red;font-weight:normal;}
+  #timerBox{position:absolute;left:218px;top:286px;width:314px;height:61px;border:2px solid #fff;background:red;color:#000;font-size:40px;font-weight:bold;text-align:center;line-height:61px;}
+  #goldBox{position:absolute;left:12px;top:286px;width:189px;height:62px;border:2px solid #ffcf25;background:#000;}
+  #goldValue{position:absolute;left:20px;top:288px;color:#ffcf25;font-size:44px;font-weight:bold;}
+  #goldIcon{position:absolute;left:133px;top:288px;width:59px;height:58px;}
+  #dropzone{position:absolute;inset:0;}
+  body.dragover{outline:6px dashed #ffcf25;outline-offset:-6px;}
+</style></head>
+<body>
+  <img id="face" src="">
+  <div id="title">YOUR FILES HAVE BEEN ENCRYPTED</div>
+  <div id="msgbox">IF YOU DO NOT PAY THIS RANSOM BEFORE THE TIMER ENDS, YOUR FILES WILL BE <b>UNRECOVERABLE BY ANY MEANS.</b></div>
+  <div id="timerBox">TIME: 00:00</div>
+  <div id="goldBox"></div>
+  <div id="goldValue">500</div>
+  <img id="goldIcon" src="">
+  <div id="dropzone"></div>
+  <script src="../common/audio-player.js"></script>
+  <script src="notification.js"></script>
+</body></html>

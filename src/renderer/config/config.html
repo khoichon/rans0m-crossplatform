@@ -1,0 +1,44 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+  body{margin:0;overflow-y:auto;font-family:Segoe UI,Nyala,sans-serif;background:linear-gradient(#230063,#30005b 30%,#b5a87b);color:#fff;padding:16px;box-sizing:border-box;width:302px;}
+  h1{font-size:20px;margin:4px 0 12px;}
+  fieldset{border:1px solid #ffffff55;border-radius:4px;margin-bottom:12px;}
+  legend{padding:0 4px;}
+  label{display:block;margin:6px 0 2px;font-size:12px;}
+  input[type=text],input[type=number]{width:100%;box-sizing:border-box;}
+  .row{display:flex;gap:8px;}
+  .row > div{flex:1;}
+  button{width:100%;margin-top:4px;}
+  .warn{color:#ffb3b3;font-size:11px;}
+  #platformNote{font-size:11px;opacity:.85;margin-top:8px;}
+  footer{text-align:center;font-size:11px;margin-top:8px;opacity:.8;}
+</style></head>
+<body>
+  <h1>Ransom's Configuration</h1>
+  <fieldset><legend>Behavior</legend>
+    <label><input type="checkbox" id="spawnAuto"> Spawn Automatically</label>
+    <div class="row">
+      <div><label>Minimum Delay (s)</label><input type="number" id="minDelay" min="0" max="86400"></div>
+      <div><label>Maximum Delay (s)</label><input type="number" id="maxDelay" min="0" max="86400"></div>
+    </div>
+    <label>Ransom Duration (s)</label>
+    <div class="row">
+      <div><input type="number" id="duration" min="5" max="86400"></div>
+      <div><button id="btnSpawn">Spawn</button></div>
+    </div>
+  </fieldset>
+  <fieldset><legend>Death Consequences</legend>
+    <label><input type="checkbox" id="crashOnDeath"> Crash on death <span class="warn">(destructive)</span></label>
+    <label><input type="checkbox" id="cmdOnDeath"> Custom command on death <span class="warn">(destructive)</span></label>
+    <input type="text" id="cmdText" maxlength="500" disabled>
+  </fieldset>
+  <fieldset><legend>Coins</legend>
+    <label><input type="radio" name="mode" id="modeUser"> Spawns in your own folders</label>
+    <label><input type="radio" name="mode" id="modeDrawer"> Spawns in "drawers" (safe test mode)</label>
+    <label>Ransom Amount</label>
+    <input type="number" id="amount" min="1" max="1000000">
+  </fieldset>
+  <div id="platformNote"></div>
+  <footer>Original RANS0M by Ixar &middot; cross-platform port</footer>
+  <script src="config.js"></script>
+</body></html>

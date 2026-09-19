@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;padding:0;width:100vw;height:100vh;background:transparent;overflow:hidden;font-family:Consolas,monospace;}
+  #tint{position:fixed;inset:0;background:rgba(60,0,0,0.35);opacity:0;transition:opacity 400ms;pointer-events:none;}
+  #bg{position:fixed;inset:0;background:rgba(0,0,0,0);transition:background 120ms linear;}
+  img,#static{position:absolute;}
+  #faces{position:fixed;inset:0;overflow:hidden;pointer-events:none;}
+  #faces img{position:absolute;}
+  #img_idle{width:192px;height:192px;opacity:0;}
+  #img_stopsign{width:192px;height:192px;left:50%;top:50%;transform:translate(-50%,-50%);opacity:0;}
+  #img_attack{width:900px;height:900px;opacity:0;}
+  #staticBg{width:100%;height:100%;object-fit:fill;opacity:0;}
+  #redVignette{width:100%;height:100%;object-fit:fill;opacity:0;}
+  #download{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);opacity:0;text-align:center;}
+  #download .label{color:#fff;font-size:36px;font-weight:normal;}
+  #bar{width:668px;height:88px;border:2px solid #000;background:#0a0000;display:flex;margin-top:8px;}
+  #bar div{flex:1;background:#000;border:1px solid #000;}
+  #cursorFollower{position:fixed;width:48px;height:48px;pointer-events:none;opacity:0;z-index:9999;image-rendering:pixelated;}
+</style></head>
+<body>
+  <div id="bg"></div>
+  <div id="tint"></div>
+  <img id="staticBg" src="">
+  <div id="faces"></div>
+  <img id="img_idle" src="">
+  <img id="img_stopsign" src="">
+  <img id="img_attack" src="">
+  <img id="redVignette" src="">
+  <div id="download"><div class="label" id="downloadText">DOWNLOADING</div><div id="bar">
+    <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
+  </div></div>
+  <img id="cursorFollower" src="">
+  <script src="../common/audio-player.js"></script>
+  <script src="overlay.js"></script>
+</body></html>

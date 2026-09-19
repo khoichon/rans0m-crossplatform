@@ -1,0 +1,95 @@
+name: Build RANS0M (all platforms)
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            script: dist:win
+            artifact: rans0m-windows
+            files: |
+              dist/*.exe
+          - name: macOS
+            os: macos-latest
+            script: dist:mac
+            artifact: rans0m-macos
+            files: |
+              dist/*.dmg
+              dist/*.zip
+          - name: Linux
+            os: ubuntu-latest
+            script: dist:linux
+            artifact: rans0m-linux
+            files: |
+              dist/*.AppImage
+              dist/*.tar.gz
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Self-test (platform-independent core)
+        run: npm test
+
+      - name: Build standalone package(s)
+        run: npm run ${{ matrix.script }}
+        env:
+          # No code-signing certificates in CI: builds are unsigned (see README).
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: List build output
+        run: ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+  package:
+    name: Zip all platforms
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rans0m-*
+          merge-multiple: true
+          path: release
+
+      - name: Create zip + checksums
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS.txt
+          ls -la
+          zip -r ../RANS0M-all-platforms.zip .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RANS0M-all-platforms
+          path: RANS0M-all-platforms.zip
+          compression-level: 0   # already a zip; don't compress twice
+          if-no-files-found: error

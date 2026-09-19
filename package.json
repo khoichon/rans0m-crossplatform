@@ -1,0 +1,127 @@
+{
+  "name": "rans0m-crossplatform",
+  "productName": "RANS0M",
+  "version": "3.0.0-port.1",
+  "description": "Unofficial cross-platform (Windows/macOS/Linux) port of Ixar's RANS0M, a fan recreation of the RANSOM entity from Roblox DOORS.",
+  "main": "src/main/main.js",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "author": "Ixar (original project); cross-platform port by contributors",
+  "homepage": "https://github.com/Ixars/ransomdoors",
+  "scripts": {
+    "start": "electron .",
+    "start:test": "electron . --test",
+    "test": "node scripts/selftest.js",
+    "dist": "electron-builder --publish never",
+    "dist:mac": "electron-builder --mac --x64 --arm64 --publish never",
+    "dist:linux": "electron-builder --linux --x64 --publish never",
+    "dist:win": "electron-builder --win --x64 --publish never"
+  },
+  "dependencies": {
+    "uiohook-napi": "^1.5.5"
+  },
+  "devDependencies": {
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "dev.rans0m.crossplatform",
+    "productName": "RANS0M",
+    "copyright": "Original RANS0M by Ixar. Cross-platform port. See LICENSE.md.",
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**"
+    ],
+    "files": [
+      "src/**",
+      "assets/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "LICENSE.md",
+        "to": "LICENSE.md"
+      },
+      {
+        "from": "THIRD-PARTY-NOTICES.md",
+        "to": "THIRD-PARTY-NOTICES.md"
+      },
+      {
+        "from": "licenses",
+        "to": "licenses"
+      }
+    ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "mac": {
+      "category": "public.app-category.entertainment",
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "RANS0M changes the desktop wallpaper while infected and restores it afterwards.",
+        "LSUIElement": true
+      }
+    },
+    "linux": {
+      "category": "Game",
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "maintainer": "RANS0M port"
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}-${os}-${arch}.${ext}"
+    },
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}-${os}-${arch}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
