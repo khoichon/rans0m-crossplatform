@@ -5,6 +5,7 @@
 // "folder drawer" mode. Marker files are the ONLY files this app ever creates or deletes;
 // nothing else on the user's disk is ever touched.
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { randomUUID } = crypto;
@@ -24,13 +25,6 @@ function weightedExtension() {
   if (roll < 85) return 3;
   if (roll < 93) return 4;
   return 5;
-}
-
-function targetFolders() {
-  return [
-    paths.userDir('desktop'), paths.userDir('documents'), paths.userDir('pictures'),
-    paths.userDir('music'), paths.userDir('videos'), paths.userDir('downloads')
-  ].filter(d => { try { return fs.statSync(d).isDirectory(); } catch { return false; } });
 }
 
 const drawerRoot = () => path.join(paths.tempDir(), 'RansomDrawers');
@@ -76,63 +70,83 @@ function decryptMarkerFile(file) {
   } catch { return null; }
 }
 
-function balancedMaxDepth() { return Math.min(8, Math.max(2, 2 + Math.floor(config.get('InfectionDuration') / 45))); }
 
-function randomLocationInTree(root) {
-  const chain = [root];
-  const depth = Math.floor(Math.random() * (balancedMaxDepth() + 1));
-  let current = root;
-  for (let i = 0; i < depth; i++) {
-    let subDirs;
-    try { subDirs = fs.readdirSync(current, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => path.join(current, d.name)); }
-    catch { break; }
-    if (subDirs.length === 0) break;
-    current = subDirs[Math.floor(Math.random() * subDirs.length)];
-    chain.push(current);
+// ---- Normal mode: only well-known, top-level folders ----------------------------------------
+// Coins are placed directly in Desktop and Downloads (never in subfolders, so we can never end
+// up inside app bundles/libraries such as macOS' "Photos Library.photoslibrary"). If neither
+// exists we fall back to other standard folders, and finally the home directory.
+const KNOWN_FOLDERS = ['desktop', 'downloads'];
+const FALLBACK_FOLDERS = ['documents', 'pictures', 'music', 'videos'];
+// Gold is not all placed at once: this share appears when the infection starts and the rest
+// trickles in during the attack, in MID_ATTACK_BATCHES batches spread over the first ~60% of the timer.
+const INITIAL_FRACTION = 0.6;
+const MID_ATTACK_BATCHES = 5;
+
+let mid = { pending: 0, batchesLeft: 0, total: 0 };
+
+function isWritableDir(d) {
+  try { if (!fs.statSync(d).isDirectory()) return false; fs.accessSync(d, fs.constants.W_OK); return true; }
+  catch { return false; }
+}
+
+function targetFolders() {
+  const pick = names => [...new Set(names.map(n => paths.userDir(n)))].filter(isWritableDir);
+  let dirs = pick(KNOWN_FOLDERS);
+  if (dirs.length === 0) dirs = pick(FALLBACK_FOLDERS);
+  if (dirs.length === 0 && isWritableDir(os.homedir())) dirs = [os.homedir()];
+  return dirs;
+}
+
+/** Places gold coins (top level of the given folders) until at least targetGold is reached. */
+function placeGold(targetGold, folders) {
+  const created = [];
+  let generated = 0, attempts = 0;
+  while (generated < targetGold && attempts < 300 && folders.length) {
+    attempts++;
+    const ext = weightedExtension();
+    const f = writeMarkerFile(folders[Math.floor(Math.random() * folders.length)], `gold${ext}`);
+    if (f) { created.push(f); generated += EXT_VALUES[ext]; }
   }
-  return chain[Math.floor(Math.random() * chain.length)];
+  return { generated, created };
 }
 
 function generateScattered() {
   const folders = targetFolders();
   const targetGold = Math.floor(config.get('RansomAmount') * 1.2);
-  let generated = 0;
-  const created = [];
-  const touchedDirs = new Set();
-  if (folders.length === 0) return { generated: 0, created };
+  mid = { pending: 0, batchesLeft: 0, total: 0 };
+  if (folders.length === 0) return { generated: 0, created: [] };
 
-  let attempts = 0;
-  while (generated < targetGold && attempts < 500) {
-    attempts++;
-    try {
-      const base = folders[Math.floor(Math.random() * folders.length)];
-      const dir = randomLocationInTree(base);
-      fs.mkdirSync(dir, { recursive: true });
-      if (!folders.includes(dir)) touchedDirs.add(dir);
-      const ext = weightedExtension();
-      const f = writeMarkerFile(dir, `gold${ext}`);
-      if (f) { created.push(f); generated += EXT_VALUES[ext]; }
-    } catch { /* skip this attempt */ }
+  const { generated, created } = placeGold(Math.ceil(targetGold * INITIAL_FRACTION), folders);
+
+  const extras = [];
+  if (generated > 0 && Math.random() < GOLD6_CHANCE) extras.push('gold6');
+  if (generated > 0 && Math.random() < CRUCIFIX_CHANCE) extras.push('crucifix');
+  for (const ext of extras) {
+    const f = writeMarkerFile(folders[Math.floor(Math.random() * folders.length)], ext);
+    if (f) created.push(f);
   }
 
-  if (Math.random() < GOLD6_CHANCE && folders.length) {
-    const base = folders[Math.floor(Math.random() * folders.length)];
-    const dir = randomLocationInTree(base);
-    try { fs.mkdirSync(dir, { recursive: true }); if (!folders.includes(dir)) touchedDirs.add(dir);
-      const f = writeMarkerFile(dir, 'gold6'); if (f) created.push(f);
-    } catch { /* ignore */ }
-  }
-  if (Math.random() < CRUCIFIX_CHANCE && folders.length) {
-    const base = folders[Math.floor(Math.random() * folders.length)];
-    const dir = randomLocationInTree(base);
-    try { fs.mkdirSync(dir, { recursive: true }); if (!folders.includes(dir)) touchedDirs.add(dir);
-      const f = writeMarkerFile(dir, 'crucifix'); if (f) created.push(f);
-    } catch { /* ignore */ }
-  }
-
-  state.patch({ files: state.get().files.concat(created), dirs: (state.get().dirs || []).concat([...touchedDirs]) });
+  if (generated > 0) mid = { pending: Math.max(0, targetGold - generated), batchesLeft: MID_ATTACK_BATCHES, total: generated };
+  state.patch({ files: state.get().files.concat(created) });
   return { generated, created };
 }
+
+/** One mid-attack batch: drops more gold into the same known folders. Returns gold created. */
+function spawnMidAttackBatch() {
+  if (mid.batchesLeft <= 0 || mid.pending <= 0) { mid.batchesLeft = 0; mid.pending = 0; return 0; }
+  const share = Math.ceil(mid.pending / mid.batchesLeft);
+  mid.batchesLeft--;
+  const { generated, created } = placeGold(share, targetFolders());
+  mid.pending = Math.max(0, mid.pending - generated);
+  mid.total += generated;
+  if (mid.batchesLeft === 0) mid.pending = 0;
+  if (created.length) state.patch({ files: state.get().files.concat(created) });
+  log.info(`Mid-attack gold: +${generated} (${created.length} file(s)), ${mid.batchesLeft} batch(es) left`);
+  return generated;
+}
+const midAttackRemaining = () => mid.batchesLeft > 0 && mid.pending > 0;
+const pendingGold = () => mid.pending;
+const totalGenerated = () => mid.total;
 
 function randFolderName() { return crypto.randomBytes(4).toString('hex'); }
 
@@ -189,6 +203,7 @@ function generateDrawer() {
       const f = writeMarkerFile(dir, 'crucifix'); if (f) created.push(f);
     }
 
+    mid = { pending: 0, batchesLeft: 0, total: generated };
     state.patch({ files: state.get().files.concat(created), drawerRoot: root });
   } catch (e) { log.warn('generateDrawer failed', e.message); }
   return { generated, created };
@@ -220,7 +235,9 @@ function deleteAllCoins() {
   for (const f of s.files || []) { try { fs.unlinkSync(f); } catch { /* already gone */ } }
   for (const d of (s.dirs || []).sort((a, b) => b.length - a.length)) { try { fs.rmdirSync(d); } catch { /* not empty / already gone, fine */ } }
   try { fs.rmSync(drawerRoot(), { recursive: true, force: true }); } catch { /* ignore */ }
+  mid = { pending: 0, batchesLeft: 0, total: 0 };
   state.patch({ files: [], dirs: [], drawerRoot: null });
 }
 
-module.exports = { generateCoins, readDroppedFile, deleteAllCoins, drawerRoot, EXT_VALUES };
+module.exports = { generateCoins, readDroppedFile, deleteAllCoins, drawerRoot, EXT_VALUES,
+  spawnMidAttackBatch, midAttackRemaining, pendingGold, totalGenerated, targetFolders, KNOWN_FOLDERS };

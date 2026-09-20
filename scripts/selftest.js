@@ -26,6 +26,18 @@ log('config clamping OK');
 config.setMany({ RansomAmount: 100 }); // restore a sane amount for the generation tests below
 config.save();
 
+// Snapshot each user folder BEFORE generating anything. CI runners (and real machines) can
+// have pre-existing OS files in these folders (desktop.ini on Windows, .localized on macOS) —
+// those aren't ours to complain about. We only care that nothing WE create is left behind.
+const os = require('os');
+const path = require('path');
+const USER_FOLDERS = ['Desktop', 'Documents', 'Pictures', 'Music', 'Videos', 'Downloads'];
+const before = {};
+for (const d of USER_FOLDERS) {
+  const dir = path.join(os.homedir(), d);
+  before[dir] = new Set(fs.existsSync(dir) ? fs.readdirSync(dir) : []);
+}
+
 // ---- scattered mode ----
 const gold = coins.generateCoins();
 assert.ok(gold > 0, 'expected some gold to be generated');
@@ -60,6 +72,35 @@ assert.strictEqual(s2.files.length, 0, 'state should be empty after cleanup');
 for (const f of s.files) assert.ok(!fs.existsSync(f), `file should have been deleted: ${f}`);
 log('cleanup removed every tracked marker file');
 
+// ---- normal mode: known top-level folders only (no subfolders), plus mid-attack batches ----
+{
+  const allowed = coins.targetFolders().map(d => path.resolve(d));
+  // Put a tempting subfolder (and an app-bundle-like folder) in every allowed folder: coins must never go in.
+  for (const d of allowed) {
+    fs.mkdirSync(path.join(d, 'SubFolder'), { recursive: true });
+    fs.mkdirSync(path.join(d, 'Photos Library.photoslibrary'), { recursive: true });
+  }
+  config.setMany({ UseDrawerMode: false, RansomAmount: 1000 }); config.save();  // target 1200: initial share (720) can never reach it
+  const initial = coins.generateCoins();
+  assert.ok(initial > 0);
+  assert.ok(coins.midAttackRemaining(), 'some gold should still be pending for mid-attack spawning');
+  const initialFiles = state.get().files.length;
+  let batches = 0, guard = 0;
+  while (coins.midAttackRemaining() && guard++ < 20) { coins.spawnMidAttackBatch(); batches++; }
+  assert.ok(batches >= 1 && batches <= 5, 'mid-attack gold arrives in at most 5 batches, got ' + batches);
+  assert.ok(coins.totalGenerated() >= 1200, `mid-attack batches should reach the planned total, got ${coins.totalGenerated()}`);
+  assert.ok(state.get().files.length > initialFiles, 'mid-attack batches must add files');
+  for (const f of state.get().files) {
+    assert.ok(allowed.includes(path.resolve(path.dirname(f))), `coin outside the known top-level folders: ${f}`);
+    assert.ok(!/SubFolder|photoslibrary/.test(f), `coin placed in a subfolder/bundle: ${f}`);
+  }
+  log(`normal mode: ${initial} gold at infection start + ${coins.totalGenerated() - initial} in ${batches} mid-attack batch(es), all directly inside ${allowed.length} known folder(s)`);
+  coins.deleteAllCoins();
+  assert.strictEqual(coins.totalGenerated(), 0);
+  for (const d of allowed) { fs.rmdirSync(path.join(d, 'SubFolder')); fs.rmdirSync(path.join(d, 'Photos Library.photoslibrary')); }
+  config.setMany({ RansomAmount: 100 }); config.save();
+}
+
 // ---- drawer mode: never touches real user folders ----
 config.setMany({ UseDrawerMode: true, RansomAmount: 60 });
 config.save();
@@ -76,12 +117,15 @@ assert.ok(!fs.existsSync(drawerRoot), 'drawer root should be removed after clean
 log('drawer temp folder removed after cleanup');
 
 // ---- real user folders were never touched outside what we tracked+cleaned ----
-for (const d of ['Desktop', 'Documents', 'Pictures', 'Music', 'Videos', 'Downloads']) {
-  const dir = require('path').join(require('os').homedir(), d);
-  const leftover = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
-  assert.strictEqual(leftover.length, 0, `leftover files in ${dir}: ${leftover}`);
+// Compare against the BEFORE snapshot so pre-existing OS files (desktop.ini, .localized, etc.)
+// on a real machine or CI runner never fail this check; only files WE introduced and failed to
+// clean up would.
+for (const dir of Object.keys(before)) {
+  const after = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  const newFiles = after.filter(f => !before[dir].has(f));
+  assert.strictEqual(newFiles.length, 0, `leftover files WE created in ${dir}: ${newFiles}`);
 }
-log('no leftover files in any user folder after cleanup');
+log('no leftover files introduced by this run in any user folder');
 
 console.log('\ncore selftests passed, running wallpaper tests...');
 // ---------------- wallpaper: capture -> change -> restore, per platform (fake OS commands) ----------------
@@ -183,4 +227,3 @@ console.log('\ncore selftests passed, running wallpaper tests...');
 
   console.log('\nALL SELFTESTS PASSED (incl. wallpaper restore)');
 })().catch(e => { console.error(e); process.exit(1); });
-
