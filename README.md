@@ -13,7 +13,7 @@ assets and `config.json` schema, so a config file is interchangeable between the
 
 RANS0M randomly pops the entity's face on your screen. You have to stop moving your mouse
 and stay off the keyboard, or it "infects" your PC: coin files worth gold get scattered
-around your user folders (or into a safe temp "drawer" — see Configuration), and you have
+into your Desktop and Downloads folders (or into a safe temp "drawer" — see Configuration), and you have
 to drag enough of them onto the ransom window before the timer runs out. Fail to pay in
 time and — only if you've explicitly turned it on — it can run a command or shut your
 computer down.
@@ -29,7 +29,7 @@ turn them on:
   agreeing to it.
 
 It doesn't touch anything on disk besides its own `.gold1`–`.gold6`/`.crucifix` marker
-files (or, in Drawer mode, a single temp folder it creates and later deletes). Everything
+files (placed only in Desktop and Downloads, or in Drawer mode a single temp folder it creates and later deletes). Everything
 it creates is tracked and removed on payment, timeout, or app exit — see
 [Known limitations](#known-limitations) for the one case where wallpaper restoration can't
 be 100% guaranteed on macOS.
@@ -83,6 +83,10 @@ Output goes to `dist/`. Builds are **unsigned**:
 - macOS: Gatekeeper may block it. Right-click the app → Open, or run `xattr -cr RANS0M.app`.
 - Linux: `chmod +x RANS0M-*.AppImage && ./RANS0M-*.AppImage`.
 
+## macOS DMG installer look
+
+The `.dmg` opens with a custom RANSOM-themed "ransom note" window: the app and Applications sit on the in-game red panels, a trail of gold coins leads from one to the other, and the price is 0 gold. It is built from the game's own credited assets by `scripts/make-dmg-background.py` (needs `pip install pillow`; the generated `build/background.png` and `build/background@2x.png` are committed, so you only run it to change the artwork). Retina is handled automatically: electron-builder merges the two PNGs on the macOS build machine. If you move the icons, keep `APP_X`, `APPS_X` and `ICON_Y` in the script in sync with `dmg.contents` in `package.json`.
+
 ## Automated builds (GitHub Actions)
 
 `.github/workflows/build-crossplatform.yml` builds Windows, macOS and Linux in parallel on every push, pull request, `v*` tag, or manual run (Actions → *Build RANS0M (all platforms)* → Run workflow). It uploads one artifact per platform, then a final job bundles everything plus `SHA256SUMS.txt` into **`RANS0M-all-platforms.zip`**, published as the `RANS0M-all-platforms` workflow artifact. Note: GitHub always wraps an artifact download in a zip, so the artifact you download contains that zip.
@@ -98,6 +102,12 @@ Same keys as the original `config.json`, stored in the app's per-user data direc
 - `UseDrawerMode` — see below.
 - `CrashOnDeath`, `ExecCMDOnDeath`, `CMDOnDeath` — **off by default, explicitly opt-in,
   potentially destructive.**
+
+## Where the gold spawns
+
+In normal mode gold goes **only directly into your Desktop and Downloads folders** (never into subfolders, so it can't end up inside things like a Photos library). If neither folder exists it falls back to Documents/Pictures/Music/Videos, and as a last resort your home folder. Only about 60% of the gold appears when the infection starts; the rest is dropped in the same folders in up to 5 batches during the first ~60% of the timer, so it keeps appearing while you search. The ransom never asks for more gold than was actually created.
+
+Drawer mode is unchanged: everything goes into a temporary `RansomDrawers` folder instead (all placed up front, nothing mid-attack). Tuning constants (`KNOWN_FOLDERS`, `INITIAL_FRACTION`, `MID_ATTACK_BATCHES`) are at the top of `src/main/coins.js`.
 
 ## Drawer mode
 

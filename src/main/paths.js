@@ -15,14 +15,21 @@ const home = os.homedir();
 
 /** name: desktop | documents | pictures | music | videos | downloads */
 function userDir(name) {
-  if (app) {
-    try { return app.getPath(name); } catch { /* fall through */ }
-  }
   const map = {
     desktop: 'Desktop', documents: 'Documents', pictures: 'Pictures', music: 'Music',
     videos: process.platform === 'darwin' ? 'Movies' : 'Videos', downloads: 'Downloads'
   };
-  return path.join(home, map[name] || name);
+  const conventional = path.join(home, map[name] || name);
+  if (app) {
+    try {
+      const p = app.getPath(name);
+      // On Linux accounts without an xdg-user-dirs config, Electron reports the HOME directory
+      // itself for Downloads/Documents. Never treat home as one of these folders: use the
+      // conventional ~/Downloads etc. instead (it's simply skipped later if it doesn't exist).
+      if (path.resolve(p) !== path.resolve(home)) return p;
+    } catch { /* fall through */ }
+  }
+  return conventional;
 }
 
 /** Per-user application data: config.json, state.json, coin.key, logs. */

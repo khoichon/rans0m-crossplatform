@@ -5,7 +5,7 @@
   "description": "Unofficial cross-platform (Windows/macOS/Linux) port of Ixar's RANS0M, a fan recreation of the RANSOM entity from Roblox DOORS.",
   "main": "src/main/main.js",
   "license": "SEE LICENSE IN LICENSE.md",
-  "author": "Ixar (original project); cross-platform port by khoichon",
+  "author": "Ixar (original project); cross-platform port by contributors",
   "homepage": "https://github.com/Ixars/ransomdoors",
   "scripts": {
     "start": "electron .",
@@ -26,7 +26,7 @@
   "build": {
     "appId": "dev.rans0m.crossplatform",
     "productName": "RANS0M",
-    "copyright": "Original RANS0M by Ixar. Cross-platform port by khoichon. See LICENSE.md.",
+    "copyright": "Original RANS0M by Ixar. Cross-platform port. See LICENSE.md.",
     "npmRebuild": false,
     "directories": {
       "output": "dist",
@@ -122,6 +122,25 @@
       "artifactName": "${productName}-Setup-${version}-${os}-${arch}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "dmg": {
+      "title": "RANS0M ${version}",
+      "background": "build/background.png",
+      "iconSize": 96,
+      "iconTextSize": 13,
+      "contents": [
+        {
+          "x": 170,
+          "y": 218,
+          "type": "file"
+        },
+        {
+          "x": 490,
+          "y": 218,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     }
   }
 }

@@ -51,7 +51,8 @@ const G = {
   activityDuringSpy: false,
   onPaid: null,
   spawnCancel: null,
-  layers: []
+  layers: [],
+  paid: 0 // gold value already handed over this ransom
 };
 
 function hookDiagnostics(win, name) {
@@ -115,6 +116,7 @@ function createOverlayWindow() {
 
 function createSmallWindow(rel, w, h, opts = {}) {
   const win = new BrowserWindow(Object.assign({
+    icon: paths.asset('icon.png'), // title-bar/taskbar icon on Windows and Linux (macOS ignores it)
     width: w, height: h, frame: false, resizable: false, alwaysOnTop: true, skipTaskbar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required' }
   }, opts));
@@ -150,7 +152,7 @@ async function fullCleanup() {
 
 function resetRansom() {
   coins.deleteAllCoins();
-  G.canAttack = true; G.onPaid = null; G.underRansom = false; G.ransomLeft = 0;
+  G.canAttack = true; G.onPaid = null; G.underRansom = false; G.ransomLeft = 0; G.paid = 0;
   G.usedCoins.clear(); G.crucifixUsed = false;
   for (const h of G.layers) { try { h.stop(); } catch { /* ignore */ } }
   G.layers = [];
@@ -216,7 +218,7 @@ async function ransomedPhase(generatedGold) {
   const layer2Sound = () => playLayer('Sounds/layer2.wav', { loop: true });
   const layer3Sound = () => playLayer('Sounds/layer3.wav');
 
-  G.ransomLeft = Math.min(config.get('RansomAmount'), generatedGold);
+  G.ransomLeft = Math.min(config.get('RansomAmount'), generatedGold + coins.pendingGold());
   G.underRansom = true;
   const duration = config.get('InfectionDuration');
   G.ransomTimeLeft = duration;
@@ -245,6 +247,7 @@ async function ransomedPhase(generatedGold) {
   const layer2Seconds = remaining - layer1Seconds;
   let started2 = false, started3 = false, layer2 = null;
 
+  const midInterval = Math.max(2, Math.floor((duration * 0.6) / 5));
   let elapsed = 0;
   while (elapsed < duration) {
     const winner = await Promise.race([delay(1000).then(() => 'tick'), paidPromise.then(() => 'paid')]);
@@ -253,6 +256,12 @@ async function ransomedPhase(generatedGold) {
 
     elapsed++;
     G.ransomTimeLeft = Math.max(0, duration - elapsed);
+
+    // More gold appears in the known folders while you're infected (5 batches over the first ~60% of the timer).
+    if (coins.midAttackRemaining() && elapsed % midInterval === 0) {
+      coins.spawnMidAttackBatch();
+      if (!coins.midAttackRemaining()) enforceGoldCap();
+    }
     notificationWin && notificationWin.webContents.send('ransom:tick', G.ransomLeft, G.ransomTimeLeft);
 
     if (!started2 && elapsed >= layer1Seconds) { started2 = true; try { layer1.stop(); } catch { /* ignore */ } layer2 = layer2Sound(); }
@@ -357,6 +366,33 @@ ipcMain.on('config:spawnNow', () => { spawnRansom(); retriggerSpawnLoop(); });
 ipcMain.on('window:close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w && !w.isDestroyed()) w.close(); });
 ipcMain.on('window:closeAfter', (e, ms) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) setTimeout(() => { try { w.close(); } catch { /* ignore */ } }, ms); });
 
+// If mid-attack spawning ended up producing less gold than promised (e.g. a folder became
+// unwritable), never demand more than actually exists, otherwise the ransom would be unpayable.
+function enforceGoldCap() {
+  const available = coins.totalGenerated() - G.paid;
+  if (G.ransomLeft > available) {
+    log.warn(`Gold cap: only ${available} gold obtainable, lowering ransom from ${G.ransomLeft}`);
+    G.ransomLeft = Math.max(0, available);
+    if (G.ransomLeft <= 0) { completePayment(); return; }
+    notificationWin && notificationWin.webContents.send('ransom:tick', G.ransomLeft, G.ransomTimeLeft);
+  }
+}
+
+function completePayment() {
+  if (!G.underRansom) return;
+  G.underRansom = false;
+  const npos = notificationWin ? notificationWin.getPosition() : [0, 0];
+  if (G.crucifixUsed) {
+    const win = createSmallWindow('crucifix/crucifix.html', 560, 400, { transparent: true, frame: false });
+    win.setPosition(npos[0], npos[1]);
+  } else {
+    const win = createSmallWindow('thankyou/thankyou.html', 560, 350, { transparent: false });
+    win.setPosition(npos[0], npos[1]);
+  }
+  if (notificationWin) { try { notificationWin.destroy(); } catch { /* ignore */ } notificationWin = null; }
+  if (G.onPaid) G.onPaid();
+}
+
 ipcMain.on('notification:drop', (_e, filePaths) => {
   let sfxPlayed = false;
   for (const f of filePaths) {
@@ -369,23 +405,14 @@ ipcMain.on('notification:drop', (_e, filePaths) => {
     if (parsed.kind === 'gold') {
       if (!sfxPlayed) { playOnOverlay('Sounds/cash.wav'); sfxPlayed = true; }
       G.ransomLeft -= parsed.value;
+      G.paid += parsed.value;
     } else if (parsed.kind === 'crucifix') {
       G.crucifixUsed = true;
       G.ransomLeft = 0;
     }
   }
   if (G.ransomLeft <= 0) {
-    G.underRansom = false;
-    const npos = notificationWin ? notificationWin.getPosition() : [0, 0];
-    if (G.crucifixUsed) {
-      const win = createSmallWindow('crucifix/crucifix.html', 560, 400, { transparent: true, frame: false });
-      win.setPosition(npos[0], npos[1]);
-    } else {
-      const win = createSmallWindow('thankyou/thankyou.html', 560, 350, { transparent: false });
-      win.setPosition(npos[0], npos[1]);
-    }
-    if (notificationWin) { try { notificationWin.destroy(); } catch { /* ignore */ } notificationWin = null; }
-    if (G.onPaid) G.onPaid();
+    completePayment();
   } else if (notificationWin) {
     notificationWin.webContents.send('ransom:tick', G.ransomLeft, G.ransomTimeLeft);
   }

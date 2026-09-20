@@ -5,7 +5,14 @@ const paths = require('./paths');
 let tray = null;
 
 function create({ onConfig, onSpawn, onDiag, onClose, isRansomActive }) {
-  const icon = nativeImage.createFromPath(paths.asset('CD-1.png')).resize({ width: 32, height: 32 });
+  const src = nativeImage.createFromPath(paths.asset('icon.png')); // 512x512 app icon
+  let icon = src;
+  if (!src.isEmpty()) {
+    icon = process.platform === 'darwin'
+      // 22pt menu-bar icon rendered from a 44px bitmap so it stays sharp on Retina
+      ? nativeImage.createFromBuffer(src.resize({ width: 44, height: 44, quality: 'best' }).toPNG(), { scaleFactor: 2 })
+      : src.resize({ width: 32, height: 32, quality: 'best' });
+  }
   tray = new Tray(icon.isEmpty() ? paths.asset('CD-1.png') : icon);
   tray.setToolTip('RANS0M');
   refresh({ onConfig, onSpawn, onDiag, onClose, isRansomActive });
