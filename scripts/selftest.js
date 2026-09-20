@@ -117,14 +117,31 @@ assert.ok(!fs.existsSync(drawerRoot), 'drawer root should be removed after clean
 log('drawer temp folder removed after cleanup');
 
 // ---- real user folders were never touched outside what we tracked+cleaned ----
-// Compare against the BEFORE snapshot so pre-existing OS files (desktop.ini, .localized, etc.)
-// on a real machine or CI runner never fail this check; only files WE introduced and failed to
-// clean up would.
+// Ignore OS-generated metadata files that may appear independently of this test.
+// Only files WE introduced and failed to clean up should cause this check to fail.
+const ignoredFiles = new Set([
+  'desktop.ini',
+  '.DS_Store',
+  '.localized',
+  'Thumbs.db',
+  'ehthumbs.db',
+  '$RECYCLE.BIN',
+]);
+
 for (const dir of Object.keys(before)) {
   const after = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
-  const newFiles = after.filter(f => !before[dir].has(f));
-  assert.strictEqual(newFiles.length, 0, `leftover files WE created in ${dir}: ${newFiles}`);
+
+  const newFiles = after.filter(
+    f => !before[dir].has(f) && !ignoredFiles.has(f)
+  );
+
+  assert.strictEqual(
+    newFiles.length,
+    0,
+    `leftover files WE created in ${dir}: ${newFiles}`
+  );
 }
+
 log('no leftover files introduced by this run in any user folder');
 
 console.log('\ncore selftests passed, running wallpaper tests...');
